@@ -1,26 +1,32 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class Leg : MonoBehaviour
+public class Leg: MonoBehaviour
 {
 	public Movement parent;
 	public Rigidbody2D rb;
-	public int id;
+	public bool collided;
+	public float slipTTL = 0;
 	private void Awake()
 	{
 		rb = this.GetComponent<Rigidbody2D>();
 	}
-
+	private void Update()
+	{
+		slipTTL -= Time.deltaTime;
+	}
 	private void OnCollisionStay2D(Collision2D collision)
 	{
-		parent.collided[id] = 1;
-		rb.constraints = RigidbodyConstraints2D.FreezePosition;
+		if (slipTTL <= 0) {
+			collided = true;
+			rb.constraints = RigidbodyConstraints2D.FreezePosition;
+		}
+
 	}
-	
-	public void Unlock()
+
+	public void Unlock(float slipTime = 0)
 	{
-		parent.collided[id] = 0;
+		collided = false;
 		rb.constraints = RigidbodyConstraints2D.None;
+		slipTTL = slipTime;
 	}
 }
