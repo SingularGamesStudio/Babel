@@ -6,6 +6,7 @@ public class Movement: MonoBehaviour
 	public Leg LLeg;
 	public Leg RLeg;
 	public Rigidbody2D Body;
+	public Rigidbody2D StaticBody;
 	public Rigidbody2D Eye;
 
 	bool grounded = false;
@@ -15,7 +16,7 @@ public class Movement: MonoBehaviour
 
 	public float StepForce = 100f;
 	public float EyeForce = 100f;
-	public float MoveForce = 20f;
+	public float AirMoveForce = 20f;
 	public float AimForce = 500f;
 	public float ShootForce = 10000f;
 
@@ -49,6 +50,7 @@ public class Movement: MonoBehaviour
 		Aim();
 		Grapple();
 		CollapseSprings();
+		StaticBody.position = Body.position;
 	}
 
 	void Aim()
@@ -93,11 +95,9 @@ public class Movement: MonoBehaviour
 			AimingLeg = LLeg;
 		}
 		if (Input.GetKeyDown(KeyCode.Space)) {
-			RaycastHit2D hit = Physics2D.Raycast(transform.position, ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - Body.rb.position).normalized;);
-			Vector2 dir =
+			Vector2 force = ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - Body.position).normalized;
 
 			AimingLeg.rb.AddForce(force * ShootForce * Time.deltaTime);
-			Body.AddForce(-force * ShootForce * Time.deltaTime);
 			CurAimCooldown = AimCooldown;
 			ToUnlock = Opposite(AimingLeg);
 
@@ -170,6 +170,29 @@ public class Movement: MonoBehaviour
 
 	void LRMovement()
 	{
+		
+		if (!Input.GetKey(KeyCode.D) && !Input.GetKey(KeyCode.A)) {
+			return;
+		}
+		Leg ActiveLeg = null;
+		if(LLeg.collided && RLeg.collided) {
+			if (Input.GetKey(KeyCode.D)) 
+				ActiveLeg = LLeg;
+			if (Input.GetKey(KeyCode.A)) 
+				ActiveLeg = RLeg;
+		} else if(LLeg.collided || RLeg.collided) {
+			if (LLeg.collided)
+				ActiveLeg = LLeg;
+			if (RLeg.collided)
+				ActiveLeg = RLeg;
+		} else {
+			if (Input.GetKey(KeyCode.D))
+				Body.AddForce(Vector2.right * AirMoveForce * Time.deltaTime);
+			if (Input.GetKey(KeyCode.A))
+				Body.AddForce(Vector2.left * AirMoveForce * Time.deltaTime);
+		}
+
+		
 		if (Input.GetKey(KeyCode.D)) {
 			Vector2 Realign = Vector2.right * MoveForce;
 			Vector2 Ltemp = (LLeg.rb.position - Body.position);
@@ -196,6 +219,7 @@ public class Movement: MonoBehaviour
 
 	Leg Opposite(Leg l)
 	{
+		if (l == null) return null;
 		if (l == LLeg) return RLeg;
 		return LLeg;
 	}
