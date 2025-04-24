@@ -10,17 +10,28 @@ public class Movement: MonoBehaviour
 	public Rigidbody2D Eye;
 
 	bool grounded = false;
-
+	Leg AimingLeg = null;
 	Leg ToUnlock = null;
 	float CurAimCooldown = 0;
 
-	public float StepForce = 100f;
-	public float EyeForce = 100f;
-	public float AirMoveForce = 20f;
-	public float AimForce = 500f;
-	public float ShootForce = 10000f;
-
 	public float AimCooldown = 1f;
+
+	public float LegMovementLimit = 0.1f;
+
+	[Header("Forces")]
+	public float StepForceLeg = 1000f;
+	public float StepForceBody = 2200f;
+	public float StepRealignForce = 300f;
+
+	public float EyeForce = 30f;
+	public float AirMoveForce = 500f;
+	public float AimForce = 5000f;
+	public float ShootForce = 400000f;
+
+
+
+
+	[Header("Stretch")]
 	public float StretchCooldown = 2f;
 	public float StretchScale = 10f;
 
@@ -43,32 +54,37 @@ public class Movement: MonoBehaviour
 
 	private void Update()
 	{
-		SwitchLegs();
+		LegStatus();
+		CollapseSprings();
 
-
-		LRMovement();
+		ChooseAimingLeg();
 		Aim();
 		Grapple();
-		CollapseSprings();
+
+
+		UnlockControl();
+		LRMovement();
+
+		Eye.position += (Body.position - StaticBody.position);
 		StaticBody.position = Body.position;
 	}
 
-	void Aim()
+	void UnlockControl()
 	{
-		Leg AimingLeg = null;
-		if (CurAimCooldown > 0) {
-			CurAimCooldown -= Time.deltaTime;
-			return;
+		if (Input.GetMouseButton(1)) {
+			LLeg.Unlock();
+			RLeg.Unlock();
 		}
-		if ((!Input.GetMouseButton(0) && !Input.GetMouseButton(1)) || !grounded) {
-			return;
-		}
-		if (LLeg.collided && RLeg.collided) {
-			if (Input.GetMouseButton(0)) {
-				AimingLeg = LLeg;
-			}
-			if (Input.GetMouseButton(1)) {
-				AimingLeg = RLeg;
+	}
+
+	void ChooseAimingLeg()
+	{
+		Vector2 mousePos = (Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition);
+		if (LLeg.collided == RLeg.collided) {
+			if ((LLeg.rb.position - mousePos).sqrMagnitude > (RLeg.rb.position - mousePos).sqrMagnitude) {
+				AimingLeg = (LLeg.collided) ? LLeg : RLeg;
+			} else {
+				AimingLeg = (LLeg.collided) ? RLeg : LLeg;
 			}
 		} else {
 			if (LLeg.collided) {
@@ -76,6 +92,17 @@ public class Movement: MonoBehaviour
 			} else {
 				AimingLeg = LLeg;
 			}
+		}
+	}
+
+	void Aim()
+	{
+		if (CurAimCooldown > 0) {
+			CurAimCooldown -= Time.deltaTime;
+			return;
+		}
+		if (!Input.GetMouseButton(0)) {
+			return;
 		}
 		if (AimingLeg != null) {
 			Vector2 force = ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - AimingLeg.rb.position).normalized;
@@ -88,12 +115,6 @@ public class Movement: MonoBehaviour
 
 	void Grapple()
 	{
-		Leg AimingLeg = null;
-		if (LLeg.collided) {
-			AimingLeg = RLeg;
-		} else {
-			AimingLeg = LLeg;
-		}
 		if (Input.GetKeyDown(KeyCode.Space)) {
 			Vector2 force = ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - Body.position).normalized;
 
@@ -129,7 +150,7 @@ public class Movement: MonoBehaviour
 	}
 
 
-	void SwitchLegs()
+	void LegStatus()
 	{
 		if (LLeg.collided && RLeg.collided) {
 			if (Vector2.SignedAngle(RLeg.rb.position - Body.position, LLeg.rb.position - Body.position) > 0) {
@@ -142,79 +163,103 @@ public class Movement: MonoBehaviour
 				ToUnlock = null;
 			}
 		}
-		grounded = LLeg.collided || RLeg.collided;
-		/*if(collided[0]>0) {
-			collided[0]--;
-			if (collided[0] == 0) {
-				if(LLeg.name=="0") {
-					LLeg.constraints = RigidbodyConstraints2D.None;
-					Debug.Log("Unlock");
-				} else {
-					RLeg.constraints = RigidbodyConstraints2D.None;
-					Debug.Log("Unlock");
+		bool newGrounded = LLeg.collided || RLeg.collided;
+
+
+		if (!grounded && newGrounded) {
+			for (int i = 0; i < LLeg.transform.parent.childCount; i++) {
+				var springs = LLeg.transform.parent.GetChild(i).GetComponents<SpringJoint2D>();
+				foreach (SpringJoint2D spring in springs) {
+					if (spring.connectedBody.name == "Static") {
+						spring.connectedBody = Body;
+					}
+				}
+			}
+			for (int i = 0; i < RLeg.transform.parent.childCount; i++) {
+				var springs = RLeg.transform.parent.GetChild(i).GetComponents<SpringJoint2D>();
+				foreach (SpringJoint2D spring in springs) {
+					if (spring.connectedBody.name == "Static") {
+						spring.connectedBody = Body;
+					}
+				}
+			}
+		}
+		if (grounded && !newGrounded) {
+			for (int i = 0; i < LLeg.transform.parent.childCount; i++) {
+				var springs = LLeg.transform.parent.GetChild(i).GetComponents<SpringJoint2D>();
+				foreach (SpringJoint2D spring in springs) {
+					if (spring.connectedBody.name == "Body") {
+						spring.connectedBody = StaticBody;
+					}
+				}
+			}
+			for (int i = 0; i < RLeg.transform.parent.childCount; i++) {
+				var springs = RLeg.transform.parent.GetChild(i).GetComponents<SpringJoint2D>();
+				foreach (SpringJoint2D spring in springs) {
+					if (spring.connectedBody.name == "Body") {
+						spring.connectedBody = StaticBody;
+					}
 				}
 			}
 		}
 
-		if (collided[1] > 0) {
-			collided[1]--;
-			if (collided[1] == 0) {
-				if (LLeg.name == "1") {
-					LLeg.constraints = RigidbodyConstraints2D.None;
-				} else {
-					RLeg.constraints = RigidbodyConstraints2D.None;
-				}
-			}
-		}*/
+		grounded = newGrounded;
 	}
+
 
 	void LRMovement()
 	{
-		
+
 		if (!Input.GetKey(KeyCode.D) && !Input.GetKey(KeyCode.A)) {
 			return;
 		}
 		Leg ActiveLeg = null;
-		if(LLeg.collided && RLeg.collided) {
-			if (Input.GetKey(KeyCode.D)) 
-				ActiveLeg = LLeg;
-			if (Input.GetKey(KeyCode.A)) 
-				ActiveLeg = RLeg;
-		} else if(LLeg.collided || RLeg.collided) {
-			if (LLeg.collided)
-				ActiveLeg = LLeg;
-			if (RLeg.collided)
-				ActiveLeg = RLeg;
-		} else {
+		if (LLeg.collided && RLeg.collided) {
 			if (Input.GetKey(KeyCode.D))
-				Body.AddForce(Vector2.right * AirMoveForce * Time.deltaTime);
+				ActiveLeg = LLeg;
 			if (Input.GetKey(KeyCode.A))
+				ActiveLeg = RLeg;
+		} else if (LLeg.collided || RLeg.collided) {
+			if (LLeg.collided)
+				ActiveLeg = RLeg;
+			if (RLeg.collided)
+				ActiveLeg = LLeg;
+		} else {
+			if (Input.GetKey(KeyCode.D)) {
+				Body.AddForce(Vector2.right * AirMoveForce * Time.deltaTime);
+				Eye.AddForce(Vector2.right * EyeForce * Time.deltaTime);
+			}
+			if (Input.GetKey(KeyCode.A)) {
 				Body.AddForce(Vector2.left * AirMoveForce * Time.deltaTime);
+				Eye.AddForce(Vector2.left * EyeForce * Time.deltaTime);
+			}
+			return;
 		}
+		Leg OppositeLeg = Opposite(ActiveLeg);
 
-		
+		Vector2 LegDir = (ActiveLeg.rb.position - Body.position);
+		Vector2 BodyDir = (Body.position - OppositeLeg.rb.position);
+
 		if (Input.GetKey(KeyCode.D)) {
-			Vector2 Realign = Vector2.right * MoveForce;
-			Vector2 Ltemp = (LLeg.rb.position - Body.position);
-			Ltemp = new Vector2(Ltemp.y, -Ltemp.x);
-
-			LLeg.Unlock();
-			LLeg.rb.AddForce(Ltemp.normalized * StepForce * Time.deltaTime);
+			LegDir = new Vector2(LegDir.y, -LegDir.x);
+			BodyDir = new Vector2(BodyDir.y, -BodyDir.x);
 			Eye.AddForce(Vector2.right * EyeForce * Time.deltaTime);
-			if (grounded)
-				Body.AddForce(Realign * Time.deltaTime);
 		}
 		if (Input.GetKey(KeyCode.A)) {
-			Vector2 Realign = Vector2.left * MoveForce;
-			Vector2 Rtemp = (RLeg.rb.position - Body.position);
-			Rtemp = new Vector2(-Rtemp.y, Rtemp.x);
-
-			RLeg.Unlock();
-			RLeg.rb.AddForce(Rtemp.normalized * StepForce * Time.deltaTime);
+			LegDir = new Vector2(-LegDir.y, LegDir.x);
+			BodyDir = new Vector2(-BodyDir.y, BodyDir.x);
 			Eye.AddForce(Vector2.left * EyeForce * Time.deltaTime);
-			if (grounded)
-				Body.AddForce(Realign * Time.deltaTime);
 		}
+		ActiveLeg.Unlock();
+
+		if ((LLeg.rb.position - RLeg.rb.position).sqrMagnitude >= LegMovementLimit * LegMovementLimit || (ActiveLeg.rb.position + LegDir.normalized - OppositeLeg.rb.position).sqrMagnitude > (LLeg.rb.position - RLeg.rb.position).sqrMagnitude) {
+			ActiveLeg.rb.AddForce(LegDir.normalized * StepForceLeg * Time.deltaTime);
+		} else {
+			Vector2 speedProj = Vector2.Dot(ActiveLeg.rb.velocity, LegDir) / Vector2.Dot(LegDir, LegDir) * LegDir;
+			if (Vector2.Dot(speedProj, LegDir) > 0)
+				ActiveLeg.rb.AddForce(-LegDir.normalized * speedProj.magnitude * StepRealignForce * Time.deltaTime);
+		}
+		Body.AddForce(BodyDir.normalized * StepForceBody * Time.deltaTime);
 	}
 
 	Leg Opposite(Leg l)
