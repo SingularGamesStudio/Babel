@@ -3,13 +3,16 @@ using UnityEngine;
 
 public class Movement: MonoBehaviour
 {
+	public int stage = 0;
+
 	public Leg LLeg;
 	public Leg RLeg;
 	public Rigidbody2D Body;
 	public Rigidbody2D StaticBody;
 	public Rigidbody2D Eye;
 
-	bool grounded = false;
+	public bool aiming = false;
+	public bool grounded = false;
 	Leg AimingLeg = null;
 	Leg ToUnlock = null;
 	float CurAimCooldown = 0;
@@ -99,12 +102,15 @@ public class Movement: MonoBehaviour
 	{
 		if (CurAimCooldown > 0) {
 			CurAimCooldown -= Time.deltaTime;
+			aiming = false;
 			return;
 		}
 		if (!Input.GetMouseButton(0)) {
+			aiming = false;
 			return;
 		}
 		if (AimingLeg != null) {
+			aiming = true;
 			Vector2 force = ((Vector2)Camera.main.ScreenToWorldPoint(Input.mousePosition) - AimingLeg.rb.position).normalized;
 
 			AimingLeg.Unlock();
