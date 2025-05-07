@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class NPC: MonoBehaviour
 {
+	public bool guard = false;
 	public int stage = 0;
 	public string state = "idle";
 	public Weapon weapon;
@@ -37,7 +38,6 @@ public class NPC: MonoBehaviour
 	int stepID = 0;
 	string walk = "";
 
-	//TODO: stop fear
 	// Update is called once per frame
 
 	public void Awake()
@@ -48,6 +48,12 @@ public class NPC: MonoBehaviour
 
 	public void Update()
 	{
+		if (state == "dead") {
+			foreach (Leg leg in legs) {
+				leg.Unlock();
+			}
+			return;
+		}
 		if (stage != Mood.Inst.player.stage) {
 			return;
 		}
@@ -55,50 +61,62 @@ public class NPC: MonoBehaviour
 		StepTTL -= Time.deltaTime;
 		MeleeTTL -= Time.deltaTime;
 		FlipTTL -= Time.deltaTime;
-		foreach (GameObject enemy in Mood.Inst.carnivores) {
-			if ((enemy.transform.position - gameObject.transform.position).magnitude < Mood.Inst.enemyDistance) {
-				state = "fear";
+		if (guard) {
+			walk = "s";
+			WalkTTL = 1;
+			Vector3 diff = (Mood.Inst.player.transform.position - gameObject.transform.position);
+			if (MeleeTTL <= 0 && diff.magnitude < Mood.Inst.meleeDistance && Mood.Inst.rep < Mood.Inst.Loved) {
+				weapon.gameObject.GetComponent<Rigidbody2D>().AddForce(diff.normalized * attackForce);
+				weapon.Activate();
+				MeleeTTL = 5;
+			}
+		} else {
+			foreach (Vulture enemy in Mood.Inst.carnivores) {
+				if (enemy.state != "dead" && (enemy.transform.position - gameObject.transform.position).magnitude < Mood.Inst.enemyDistance) {
+					state = "fear";
 
-				target = enemy;
+					target = enemy.gameObject;
+				}
 			}
-		}
-		if ((Mood.Inst.fear > Mood.Inst.fearLimit && Mood.Inst.rep < Mood.Inst.Liked) || Mood.Inst.rep < -Mood.Inst.Loved) {
-			if ((Mood.Inst.player.transform.position - gameObject.transform.position).magnitude < Mood.Inst.enemyDistance) {
-				state = "fear";
-				target = Mood.Inst.player.gameObject;
+			if ((Mood.Inst.fear > Mood.Inst.fearLimit && Mood.Inst.rep < Mood.Inst.Liked) || Mood.Inst.rep < -Mood.Inst.Loved) {
+				if ((Mood.Inst.player.transform.position - gameObject.transform.position).magnitude < Mood.Inst.enemyDistance) {
+					state = "fear";
+					target = Mood.Inst.player.gameObject;
+				}
 			}
-		}
-		switch (state) {
-			case "fear":
-				rb.AddForce(Vector2.down * HideForce * Time.deltaTime);
-				Vector3 diff = (target.transform.position - gameObject.transform.position);
-				if (MeleeTTL <= 0 && diff.magnitude < Mood.Inst.meleeDistance) {
-					weapon.gameObject.GetComponent<Rigidbody2D>().AddForce(diff.normalized * attackForce);
-					weapon.Activate();
-					MeleeTTL = 5;
-				} else {
-					if (diff.x > 0) {
-						walk = "l";
+			switch (state) {
+				case "fear":
+					rb.AddForce(Vector2.down * HideForce * Time.deltaTime);
+					Vector3 diff = (target.transform.position - gameObject.transform.position);
+					if (MeleeTTL <= 0 && diff.magnitude < Mood.Inst.meleeDistance) {
+						weapon.gameObject.GetComponent<Rigidbody2D>().AddForce(diff.normalized * attackForce);
+						weapon.Activate();
+						MeleeTTL = 5;
 					} else {
-						walk = "r";
+						if (diff.x > 0) {
+							walk = "l";
+						} else {
+							walk = "r";
+						}
+						WalkTTL = 1;
 					}
-					WalkTTL = 1;
-				}
-				break;
-			case "idle":
-				if (WalkTTL <= 0) {
-					if (UnityEngine.Random.Range(0, 2) == 0) {
-						walk = "l";
-					} else {
-						walk = "r";
+					state = "idle";
+					break;
+				case "idle":
+					if (WalkTTL <= 0) {
+						if (UnityEngine.Random.Range(0, 2) == 0) {
+							walk = "l";
+						} else {
+							walk = "r";
+						}
+						WalkTTL = UnityEngine.Random.Range(1.5f, 8f);
 					}
-					WalkTTL = UnityEngine.Random.Range(1.5f, 8f);
-				}
-				if ((Mood.Inst.player.transform.position - gameObject.transform.position).magnitude < Mood.Inst.vibeDistance) {
-					walk = "v";
-					WalkTTL = UnityEngine.Random.Range(1.5f, 8f);
-				}
-				break;
+					if ((Mood.Inst.player.transform.position - gameObject.transform.position).magnitude < Mood.Inst.vibeDistance) {
+						walk = "v";
+						WalkTTL = UnityEngine.Random.Range(1.5f, 8f);
+					}
+					break;
+			}
 		}
 		if (WalkTTL > 0) {
 			if (walk == "l" || walk == "r") {

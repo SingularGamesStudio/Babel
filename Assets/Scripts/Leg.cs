@@ -25,10 +25,12 @@ public class Leg: MonoBehaviour
 	}
 	public void OnCollisionStay2D(Collision2D collision)
 	{
+
 		if (slipTTL <= 0) {
-			collided = true;
+
 			//rb.constraints = RigidbodyConstraints2D.FreezePosition;
-			if (joint == null && collision.rigidbody.gameObject.layer != 6) {
+			if (joint == null && collision.rigidbody.gameObject.layer != 6 && collision.rigidbody.gameObject.layer != 11) {
+				collided = true;
 				joint = gameObject.AddComponent<FixedJoint2D>();
 				joint.connectedBody = collision.rigidbody;
 
